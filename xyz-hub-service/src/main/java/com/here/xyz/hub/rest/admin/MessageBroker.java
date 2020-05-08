@@ -20,9 +20,18 @@
 package com.here.xyz.hub.rest.admin;
 
 /**
- * The MessageBroker provides the infrastructural implementation of how to send & receive {@link AdminMessage}s.
- *
- * NOTE: The {@link MessageBroker#getInstance()} method decides which implementation to return as the default implementation.
+ * The MessageBroker provides the infrastructural implementation of how to send
+ * & receive {@link AdminMessage}s.
+ * 
+ * NOTE: The {@link MessageBroker#getInstance()} method decides which
+ * implementation to return.
+ * 
+ * The default {@link MessageBroker} implementation is the {@link SnsMessageBroker}.
+ * 
+ * To set the {@link MessageBroker} you can use the java property
+ * "AdminMessageBroker={@link HttpMessageBroker}" or set the environment
+ * variable "ADMIN_MESSAGE_BROKER={@link HttpMessageBroker}".
+ * 
  */
 public interface MessageBroker {
 
@@ -31,8 +40,14 @@ public interface MessageBroker {
   void receiveRawMessage(byte[] rawJsonMessage);
 
   static MessageBroker getInstance() {
-    //Return an instance of the default implementation
-    return SnsMessageBroker.getInstance();
+    switch (System.getenv("ADMIN_MESSAGE_BROKER") != null ? System.getenv("ADMIN_MESSAGE_BROKER")
+        : System.getProperty("AdminMessageBroker", "SnsMessageBroker")) {
+      case "HttpMessageBroker":
+        return HttpMessageBroker.getInstance();
+      case "SnsMessageBroker":
+      default:
+        return SnsMessageBroker.getInstance();
+    }
   }
 
 }
