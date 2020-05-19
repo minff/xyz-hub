@@ -41,6 +41,7 @@ import io.vertx.ext.web.client.WebClient;
  * interface.
  *
  * For extending this abstract you must implement
+ * {@link WebMessageBroker#isInitialized()},
  * {@link WebMessageBroker#getPeriodicUpdate()},
  * {@link WebMessageBroker#getPeriodicUpdateDelay()},
  * {@link WebMessageBroker#getTargetEndpoints()} and a static
