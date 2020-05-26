@@ -469,6 +469,11 @@ public class Service {
     public String TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN;
 
     /**
+     * The id of the service discovery service to use with the service discovery web message broker.
+     */
+    public String SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID;
+
+    /**
      * The name of the message broker class implementation to use.
      */
     public String ADMIN_MESSAGE_BROKER;

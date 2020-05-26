@@ -48,8 +48,8 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 	private static volatile Boolean isInitialized;
 
 	static {
-		SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID = (Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN != null
-				? Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN
+		SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID = (Service.configuration.SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID != null
+				? Service.configuration.SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID
 				: "xyz-hub");
 		try {
 			SD_CLIENT = AWSServiceDiscoveryAsyncClientBuilder.standard()
