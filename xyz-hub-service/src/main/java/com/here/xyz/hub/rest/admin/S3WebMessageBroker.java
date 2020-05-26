@@ -25,22 +25,17 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.util.IOUtils;
+import com.here.xyz.hub.Service;
 
 /**
  * The {@link S3WebMessageBroker} extends the {@link WebMessageBroker} abstract.
  * 
- * To use the {@link S3WebMessageBroker} you can use the java property
- * "AdminMessageBroker={@link S3WebMessageBroker}" or set the environment
- * variable "ADMIN_MESSAGE_BROKER={@link S3WebMessageBroker}".
+ * To use the {@link S3WebMessageBroker} you can set the environment variable
+ * "ADMIN_MESSAGE_BROKER={@link S3WebMessageBroker}".
  * 
- * The {@link S3WebMessageBroker} must be configured. You can use the java
- * properties "com.here.xyz.hub.rest.admin.S3WebMessageBroker.BUCKET",
- * "com.here.xyz.hub.rest.admin.S3WebMessageBroker.OBJECT",
- * "com.here.xyz.hub.rest.admin.S3WebMessageBroker.PERIODIC_UPDATE" and
- * "com.here.xyz.hub.rest.admin.S3WebMessageBroker.PERIODIC_UPDATE_DELAY" or set
- * the environment variables "S3_WEB_MESSAGE_BROKER_BUCKET",
- * "S3_WEB_MESSAGE_BROKER_OBJECT", "S3_WEB_MESSAGE_BROKER_PERIODIC_UPDATE" and
- * "S3_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY".
+ * The {@link S3WebMessageBroker} must be configured. You can set the
+ * environment variables "S3_WEB_MESSAGE_BROKER_BUCKET" and
+ * "S3_WEB_MESSAGE_BROKER_OBJECT".
  * 
  */
 
@@ -48,32 +43,28 @@ public class S3WebMessageBroker extends WebMessageBroker {
 
 	private static volatile S3WebMessageBroker instance;
 	private static volatile AmazonS3 S3_CLIENT;
-	private static volatile String BUCKET;
-	private static volatile String OBJECT;
-	private static volatile Boolean PERIODIC_UPDATE;
-	private static volatile Integer PERIODIC_UPDATE_DELAY;
+	private static volatile String S3_WEB_MESSAGE_BROKER_BUCKET;
+	private static volatile String S3_WEB_MESSAGE_BROKER_OBJECT;
 	private static volatile Boolean isInitialized;
 
 	static {
-		BUCKET = getConfig("S3_WEB_MESSAGE_BROKER_BUCKET", S3WebMessageBroker.class.getName() + ".BUCKET",
-				"xyz-hub-admin-messaging");
-		OBJECT = getConfig("S3_WEB_MESSAGE_BROKER_OBJECT", S3WebMessageBroker.class.getName() + ".OBJECT",
-				"instances.json");
-		PERIODIC_UPDATE = Boolean.valueOf(getConfig("S3_WEB_MESSAGE_BROKER_PERIODIC_UPDATE",
-				S3WebMessageBroker.class.getName() + ".PERIODIC_UPDATE", "false"));
-		PERIODIC_UPDATE_DELAY = Integer.parseInt(getConfig("S3_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY",
-				S3WebMessageBroker.class.getName() + ".PERIODIC_UPDATE_DELAY", "0"));
+		S3_WEB_MESSAGE_BROKER_BUCKET = (Service.configuration.S3_WEB_MESSAGE_BROKER_BUCKET != null
+				? Service.configuration.S3_WEB_MESSAGE_BROKER_BUCKET
+				: "xyz-hub-admin-messaging");
+		S3_WEB_MESSAGE_BROKER_OBJECT = (Service.configuration.S3_WEB_MESSAGE_BROKER_OBJECT != null
+				? Service.configuration.S3_WEB_MESSAGE_BROKER_OBJECT
+				: "instances.json");
 		try {
 			S3_CLIENT = AmazonS3ClientBuilder.standard().withCredentials(new DefaultAWSCredentialsProviderChain())
 					.build();
+			setPeriodicUpdateConfig();
 			isInitialized = true;
 			logger.info("The S3WebMessageBroker was initialized.");
 		} catch (Exception e) {
-			logger.warn("Initializing the S3WebMessageBroker failed with error: {} ", e.getMessage());
 			S3_CLIENT = null;
-			PERIODIC_UPDATE = false;
-			PERIODIC_UPDATE_DELAY = 0;
+			disablePeriodicUpdate();
 			isInitialized = false;
+			logger.warn("Initializing the S3WebMessageBroker failed with error: {} ", e.getMessage());
 		}
 		instance = new S3WebMessageBroker();
 	}
@@ -84,19 +75,12 @@ public class S3WebMessageBroker extends WebMessageBroker {
 	}
 
 	@Override
-	protected Boolean getPeriodicUpdate() {
-		return PERIODIC_UPDATE;
-	}
-
-	@Override
-	protected Integer getPeriodicUpdateDelay() {
-		return PERIODIC_UPDATE_DELAY;
-	}
-
-	@Override
 	@SuppressWarnings("unchecked")
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
-		return mapper.get().readValue(new String(IOUtils.toByteArray(S3_CLIENT.getObject(BUCKET, OBJECT).getObjectContent())), ConcurrentHashMap.class);
+		return mapper.get()
+				.readValue(new String(IOUtils.toByteArray(S3_CLIENT
+						.getObject(S3_WEB_MESSAGE_BROKER_BUCKET, S3_WEB_MESSAGE_BROKER_OBJECT).getObjectContent())),
+						ConcurrentHashMap.class);
 	}
 
 	static S3WebMessageBroker getInstance() {

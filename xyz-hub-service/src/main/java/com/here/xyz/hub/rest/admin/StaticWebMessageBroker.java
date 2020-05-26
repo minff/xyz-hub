@@ -21,17 +21,17 @@ package com.here.xyz.hub.rest.admin;
 
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.here.xyz.hub.Service;
+
 /**
  * The {@link StaticWebMessageBroker} extends the {@link WebMessageBroker}
  * abstract.
  * 
- * To use the {@link StaticWebMessageBroker} you can use the java property
- * "AdminMessageBroker={@link StaticWebMessageBroker}" or set the environment
+ * To use the {@link StaticWebMessageBroker} you can set the environment
  * variable "ADMIN_MESSAGE_BROKER={@link StaticWebMessageBroker}".
  * 
- * The {@link StaticWebMessageBroker} must be configured. You can use the java
- * property "com.here.xyz.hub.rest.admin.StaticWebMessageBroker.CONFIG" or set
- * the environment variable "STATIC_WEB_MESSAGE_BROKER_CONFIG" to a json string,
+ * The {@link StaticWebMessageBroker} must be configured. You can set the
+ * environment variable "STATIC_WEB_MESSAGE_BROKER_CONFIG" to a json string,
  * e.g. { "instance": "port", "instance": "port", ... }.
  * 
  */
@@ -39,12 +39,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StaticWebMessageBroker extends WebMessageBroker {
 
 	private static volatile StaticWebMessageBroker instance;
-	private static volatile String CONFIG;
+	private static volatile ConcurrentHashMap<String, String> STATIC_WEB_MESSAGE_BROKER_CONFIG;
 	private static volatile Boolean isInitialized;
 
 	static {
-		CONFIG = getConfig("STATIC_WEB_MESSAGE_BROKER_CONFIG", StaticWebMessageBroker.class.getName() + ".CONFIG",
-				"{}");
+		STATIC_WEB_MESSAGE_BROKER_CONFIG = (Service.configuration.STATIC_WEB_MESSAGE_BROKER_CONFIG != null
+				? Service.configuration.STATIC_WEB_MESSAGE_BROKER_CONFIG
+				: new ConcurrentHashMap<String, String>());
+		disablePeriodicUpdate();
 		isInitialized = true;
 		logger.info("The StaticWebMessageBroker was initialized.");
 		instance = new StaticWebMessageBroker();
@@ -56,19 +58,8 @@ public class StaticWebMessageBroker extends WebMessageBroker {
 	}
 
 	@Override
-	protected Boolean getPeriodicUpdate() {
-		return false;
-	}
-
-	@Override
-	protected Integer getPeriodicUpdateDelay() {
-		return 0;
-	}
-
-	@Override
-	@SuppressWarnings("unchecked")
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
-		return mapper.get().readValue(CONFIG, ConcurrentHashMap.class);
+		return STATIC_WEB_MESSAGE_BROKER_CONFIG;
 	}
 
 	static StaticWebMessageBroker getInstance() {

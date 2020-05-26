@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.rest.admin;
 
+import com.here.xyz.hub.Service;
+
 /**
  * The MessageBroker provides the infrastructural implementation of how to send
  * & receive {@link AdminMessage}s.
@@ -42,8 +44,8 @@ public interface MessageBroker {
   void receiveRawMessage(byte[] rawJsonMessage);
 
   static MessageBroker getInstance() {
-    switch (System.getenv("ADMIN_MESSAGE_BROKER") != null ? System.getenv("ADMIN_MESSAGE_BROKER")
-        : System.getProperty("AdminMessageBroker", "SnsMessageBroker")) {
+    switch (Service.configuration.ADMIN_MESSAGE_BROKER != null ? Service.configuration.ADMIN_MESSAGE_BROKER
+        : "SnsMessageBroker") {
       case "StaticWebMessageBroker":
         return StaticWebMessageBroker.getInstance();
       case "S3WebMessageBroker":

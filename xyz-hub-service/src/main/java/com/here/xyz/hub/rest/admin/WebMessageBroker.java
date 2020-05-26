@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest.admin;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,13 +28,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.rest.AdminApi;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClient;
 
 /**
@@ -42,11 +47,13 @@ import io.vertx.ext.web.client.WebClient;
  *
  * For extending this abstract you must implement
  * {@link WebMessageBroker#isInitialized()},
- * {@link WebMessageBroker#getPeriodicUpdate()},
- * {@link WebMessageBroker#getPeriodicUpdateDelay()},
  * {@link WebMessageBroker#getTargetEndpoints()} and a static
  * {@link #getInstance()} method.
  *
+ * The {@link WebMessageBroker} can be configured. You can set the environment
+ * variable "WEB_MESSAGE_BROKER_PERIODIC_UPDATE" to a boolean and you can set
+ * the environment variable "WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY" to an
+ * integer.
  */
 
 abstract class WebMessageBroker implements MessageBroker {
@@ -57,20 +64,18 @@ abstract class WebMessageBroker implements MessageBroker {
 
 	private static volatile WebClient HTTP_CLIENT;
 	private static volatile ConcurrentHashMap<String, String> TARGET_ENDPOINTS;
+	protected static volatile Boolean WEB_MESSAGE_BROKER_PERIODIC_UPDATE;
+	protected static volatile Integer WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY;
 
 	protected WebMessageBroker() {
 		HTTP_CLIENT = WebClient.create(Service.vertx);
 		updateTargetEndpoints();
-		if (getPeriodicUpdate()) {
-			Service.vertx.setPeriodic(getPeriodicUpdateDelay(), handler -> updateTargetEndpoints());
+		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE) {
+			Service.vertx.setPeriodic(WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY, handler -> updateTargetEndpoints());
 		}
 	}
 
 	abstract protected Boolean isInitialized();
-	
-	abstract protected Boolean getPeriodicUpdate();
-
-	abstract protected Integer getPeriodicUpdateDelay();
 
 	abstract protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception;
 
@@ -78,12 +83,36 @@ abstract class WebMessageBroker implements MessageBroker {
 		if (isInitialized()) {
 			try {
 				TARGET_ENDPOINTS = getTargetEndpoints();
-				logConfig();
+				removeOwnInstance();
 			} catch (Exception e) {
 				logger.warn("Failed to set target endpoints with error {} ", e.getMessage());
 			}
 		} else {
 			logger.warn("The broker is not initialized!");
+		}
+		logConfig();
+	}
+
+	private void removeOwnInstance() {
+		InetAddress ownInetAddress;
+		String targetInetAddress;
+		try {
+			ownInetAddress = InetAddress.getLocalHost();
+			for (String key : TARGET_ENDPOINTS.keySet()) {
+				try {
+					targetInetAddress = InetAddress.getByName(key).getHostAddress();
+				} catch (Exception targetInetAddressException) {
+					targetInetAddress = "";
+				}
+				if (key.equals(Service.configuration.HOST_NAME) || key.equals(ownInetAddress.getHostAddress())
+						|| key.equals(ownInetAddress.getHostName())
+						|| ownInetAddress.getHostAddress().equals(targetInetAddress)) {
+					logger.debug("Removing instance ({}:{}) from target endpoints.", key, TARGET_ENDPOINTS.get(key));
+					TARGET_ENDPOINTS.remove(key);
+				}
+			}
+		} catch (Exception ownInetAddressException) {
+			logger.debug("Cannot get local host address.");
 		}
 	}
 
@@ -191,29 +220,58 @@ abstract class WebMessageBroker implements MessageBroker {
 
 	private Future<String> notifyEndpoint(String endpointName, String endpointPort, String message) {
 		Future<String> future = Future.future();
-		HTTP_CLIENT.post(Integer.parseInt(endpointPort), endpointName, AdminApi.ADMIN_MESSAGES_ENDPOINT)
-				.putHeader("Authorization", "bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
-				.sendJson(message, handler -> {
-					if (handler.succeeded()) {
-						future.complete(Integer.toString(handler.result().statusCode()));
-					} else {
-						logger.warn(
-								"The WebMessageBroker HTTP_CLIENT failed to post data to endpoint {}:{}. The error is: {}",
-								endpointName, endpointPort, handler.cause().getMessage());
-						future.fail(handler.cause().getMessage());
-					}
-				});
+		if (Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY) {
+			HTTP_CLIENT.post(Integer.parseInt(endpointPort), endpointName, AdminApi.ADMIN_MESSAGES_ENDPOINT).sendJson(
+					message, handler -> handleNotificationResult(endpointName, endpointPort, future, handler));
+		} else {
+			HTTP_CLIENT.post(Integer.parseInt(endpointPort), endpointName, AdminApi.ADMIN_MESSAGES_ENDPOINT)
+					.putHeader("Authorization", "bearer " + Service.configuration.ADMIN_MESSAGE_JWT).sendJson(message,
+							handler -> handleNotificationResult(endpointName, endpointPort, future, handler));
+		}
 		return future;
 	}
 
-	protected static String getConfig(String environmentKey, String propertyKey, String defaultValue) {
-		return System.getenv(environmentKey) != null ? System.getenv(environmentKey)
-				: System.getProperty(propertyKey, defaultValue);
+	private void handleNotificationResult(String endpointName, String endpointPort, Future<String> future,
+			AsyncResult<HttpResponse<Buffer>> handler) {
+		if (handler.succeeded()) {
+			if (handler.result().statusCode() != 200 && handler.result().statusCode() != 204) {
+				logger.warn("The WebMessageBroker HTTP_CLIENT failed to post data to endpoint {}:{}. The error is: {}",
+						endpointName, endpointPort,
+						"Unexpected status code " + Integer.toString(handler.result().statusCode()));
+				future.fail("Unexpected status code " + Integer.toString(handler.result().statusCode()));
+			} else {
+				future.complete(Integer.toString(handler.result().statusCode()));
+			}
+		} else {
+			logger.warn("The WebMessageBroker HTTP_CLIENT failed to post data to endpoint {}:{}. The error is: {}",
+					endpointName, endpointPort, handler.cause().getMessage());
+			future.fail(handler.cause().getMessage());
+		}
+	}
+
+	protected static void setPeriodicUpdateConfig() {
+		WEB_MESSAGE_BROKER_PERIODIC_UPDATE = (Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE != null
+				? Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE
+				: false);
+		WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = (Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY != null
+				? Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY
+				: 30000);
+		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE && WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY < 30000) {
+			WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 30000;
+		}
+		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE && WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY <= 0) {
+			WEB_MESSAGE_BROKER_PERIODIC_UPDATE = false;
+		}
+	}
+
+	protected static void disablePeriodicUpdate() {
+		WEB_MESSAGE_BROKER_PERIODIC_UPDATE = false;
+		WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 0;
 	}
 
 	protected void logConfig() {
 		logger.debug("TARGET_ENDPOINTS: {}, PeriodicUpdate: {}, PeriodicUpdateDelay: {}", TARGET_ENDPOINTS,
-				getPeriodicUpdate(), getPeriodicUpdateDelay());
+				WEB_MESSAGE_BROKER_PERIODIC_UPDATE, WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY);
 	}
 
 }

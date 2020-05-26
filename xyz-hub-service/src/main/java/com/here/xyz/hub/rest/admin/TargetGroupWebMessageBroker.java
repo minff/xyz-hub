@@ -25,24 +25,17 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.elasticloadbalancingv2.AmazonElasticLoadBalancingAsync;
 import com.amazonaws.services.elasticloadbalancingv2.AmazonElasticLoadBalancingAsyncClientBuilder;
 import com.amazonaws.services.elasticloadbalancingv2.model.DescribeTargetHealthRequest;
+import com.here.xyz.hub.Service;
 
 /**
  * The {@link TargetGroupWebMessageBroker} extends the {@link WebMessageBroker}
  * abstract.
  * 
- * To use the {@link TargetGroupWebMessageBroker} you can use the java property
- * "AdminMessageBroker={@link TargetGroupWebMessageBroker}" or set the
- * environment variable
- * "ADMIN_MESSAGE_BROKER={@link TargetGroupWebMessageBroker}".
+ * To use the {@link TargetGroupWebMessageBroker} you can set the environment
+ * variable "ADMIN_MESSAGE_BROKER={@link TargetGroupWebMessageBroker}".
  * 
- * The {@link TargetGroupWebMessageBroker} must be configured. You can use the
- * java properties
- * "com.here.xyz.hub.rest.admin.TargetGroupWebMessageBroker.ELB_TARGETGROUP_ARN"
- * and
- * "com.here.xyz.hub.rest.admin.TargetGroupWebMessageBroker.PERIODIC_UPDATE_DELAY"
- * or set the environment variables
- * "TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN" and
- * "TARGET_GROUP_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY".
+ * The {@link TargetGroupWebMessageBroker} must be configured. You can set the
+ * environment variable "TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN".
  * 
  */
 
@@ -50,25 +43,24 @@ public class TargetGroupWebMessageBroker extends WebMessageBroker {
 
 	private static volatile TargetGroupWebMessageBroker instance;
 	private static volatile AmazonElasticLoadBalancingAsync ELB_CLIENT;
-	private static volatile String ELB_TARGETGROUP_ARN;
-	private static volatile Integer PERIODIC_UPDATE_DELAY;
+	private static volatile String TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN;
 	private static volatile Boolean isInitialized;
 
 	static {
-		ELB_TARGETGROUP_ARN = getConfig("TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN",
-				TargetGroupWebMessageBroker.class.getName() + ".ELB_TARGETGROUP_ARN", null);
-		PERIODIC_UPDATE_DELAY = Integer.parseInt(getConfig("TARGET_GROUP_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY",
-				TargetGroupWebMessageBroker.class.getName() + ".PERIODIC_UPDATE_DELAY", "30000"));
+		TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN = (Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN != null
+				? Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN
+				: null);
 		try {
 			ELB_CLIENT = AmazonElasticLoadBalancingAsyncClientBuilder.standard()
 					.withCredentials(new DefaultAWSCredentialsProviderChain()).build();
+			setPeriodicUpdateConfig();
 			isInitialized = true;
 			logger.info("The TargetGroupWebMessageBroker was initialized.");
 		} catch (Exception e) {
-			logger.warn("Initializing the TargetGroupWebMessageBroker failed with error: {} ", e.getMessage());
 			ELB_CLIENT = null;
-			PERIODIC_UPDATE_DELAY = 0;
+			disablePeriodicUpdate();
 			isInitialized = false;
+			logger.warn("Initializing the TargetGroupWebMessageBroker failed with error: {} ", e.getMessage());
 		}
 		instance = new TargetGroupWebMessageBroker();
 	}
@@ -79,21 +71,11 @@ public class TargetGroupWebMessageBroker extends WebMessageBroker {
 	}
 
 	@Override
-	protected Boolean getPeriodicUpdate() {
-		return (ELB_CLIENT != null && isInitialized);
-	}
-
-	@Override
-	protected Integer getPeriodicUpdateDelay() {
-		return PERIODIC_UPDATE_DELAY;
-	}
-
-	@Override
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
 		// TODO: minor: support multiple target group arn once required
 		ConcurrentHashMap<String, String> targetEndpoints = new ConcurrentHashMap<String, String>();
 		DescribeTargetHealthRequest request = new DescribeTargetHealthRequest();
-		request.setTargetGroupArn(ELB_TARGETGROUP_ARN);
+		request.setTargetGroupArn(TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN);
 		// TODO: minor: respect possible pagination
 		ELB_CLIENT.describeTargetHealth(request).getTargetHealthDescriptions().forEach(targetInstance -> targetEndpoints
 				.put(targetInstance.getTarget().getId(), Integer.toString(targetInstance.getTarget().getPort())));

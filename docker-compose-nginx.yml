@@ -6,7 +6,6 @@ services:
           context: "./"
         expose:
             - "8080"
-            - "8181"
         depends_on:
             - "postgres"
             - "redis"
@@ -14,15 +13,9 @@ services:
         environment:
             - LOG_CONFIG=log4j2-console-debug.json
             - INSTANCE_COUNT=2
-            - XYZ_HUB_AUTH=JWT
-            - JWT_PUB_KEY=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnzyis1ZjfNB0bBgKFMSvvkTtwlvBsaJq7S5wA+kzeVOVpVWwkWdVha4s38XM/pa/yr47av7+z3VTmvDRyAHcaT92whREFpLv9cj5lTeJSibyr/Mrm/YtjCZVWgaOYIhwrXwKLqPr/11inWsAkfIytvHWTxZYEcXLgAXFuUuaS3uF9gEiNQwzGTU1v0FqkqTBr4B8nW3HCN47XUu0t8Y0e+lf4s4OxQawWD79J9/5d3Ry0vbV3Am1FtGJiJvOwRsIfVChDpYStTcHTCMqtvWbV6L11BWkpzGXSW4Hv43qa+GSYOD2QU68Mb59oSk2OB+BtOLpJofmbGEGgvmwyCI9MwIDAQAB
-            - ADMIN_MESSAGE_PORT=8181
-            - ADMIN_MESSAGE_JWT=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cm0iOnsieHl6LWh1YiI6eyJyZWFkRmVhdHVyZXMiOlt7fV0sImNyZWF0ZUZlYXR1cmVzIjpbe31dLCJ1cGRhdGVGZWF0dXJlcyI6W3t9XSwiZGVsZXRlRmVhdHVyZXMiOlt7fV0sIm1hbmFnZVNwYWNlcyI6W3t9XSwiYWRtaW5TcGFjZXMiOlt7fV0sIm1hbmFnZVBhY2thZ2VzIjpbe31dLCJhY2Nlc3NDb25uZWN0b3JzIjpbe31dLCJ1c2VDYXBhYmlsaXRpZXMiOlt7fV0sInVzZUFkbWluQ2FwYWJpbGl0aWVzIjpbe31dfX0sImFpZCI6IkFOT05ZTU9VUyIsImlhdCI6MTU3NzgzMzIwMCwiZXhwIjoyMDAwMDAwMDAwfQ.T1prvfq8jJ9vwzPcvNgJPpBxML6iHOjNZJBuruYXWYkMIwzj16f5qLhS7Mw08fxtPHzxgEqwMmOUALSD9HRfmJ_mCopwfp_3UQFXhB0FDmWlxZ4POClquUA9SgsY6p_dAeDa0ZYHag_qdRcmgVQ4ZDAFbjzKDMFsXe8srXDXCow5W0KHSTiC3Uvy07xY_9D2tBs1V2HCsP1DFWzFXkCA0fjftdkmVa4clvXcGXy2ZJyes89xNVlcuryk6E0DmfcD6CSqA19941X0ijV5s7-TxTvNHmUQ0EL8WksYWu69ibtuF_gmf2Cdsrr5YcZgGtSwMTyT0WgKL8kpLECFDOj4hA
-            - ADMIN_MESSAGE_BROKER=${ADMIN_MESSAGE_BROKER:-StaticWebMessageBroker}
-            - 'STATIC_WEB_MESSAGE_BROKER_CONFIG=${STATIC_WEB_MESSAGE_BROKER_CONFIG:-{"xyz-hub_xyz-hub_1": "8181","xyz-hub_xyz-hub_2": "8181"}}'
-            #- ADMIN_MESSAGE_BROKER=${ADMIN_MESSAGE_BROKER:-S3WebMessageBroker}
-            #- ADMIN_MESSAGE_BROKER=${ADMIN_MESSAGE_BROKER:-TargetGroupWebMessageBroker}
-            #- ADMIN_MESSAGE_BROKER=${ADMIN_MESSAGE_BROKER:-ServiceDiscoveryWebMessageBroker}
+            - XYZ_HUB_AUTH=DUMMY
+            - ADMIN_MESSAGE_BROKER=StaticWebMessageBroker
+            - 'STATIC_WEB_MESSAGE_BROKER_CONFIG={"xyz-hub_xyz-hub_1": "8080","xyz-hub_xyz-hub_2": "8080"}'
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages

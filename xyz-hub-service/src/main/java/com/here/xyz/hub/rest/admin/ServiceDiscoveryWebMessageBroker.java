@@ -25,24 +25,18 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.servicediscovery.AWSServiceDiscoveryAsync;
 import com.amazonaws.services.servicediscovery.AWSServiceDiscoveryAsyncClientBuilder;
 import com.amazonaws.services.servicediscovery.model.ListInstancesRequest;
+import com.here.xyz.hub.Service;
 
 /**
  * The {@link ServiceDiscoveryWebMessageBroker} extends the
  * {@link WebMessageBroker} abstract.
  * 
- * To use the {@link ServiceDiscoveryWebMessageBroker} you can use the java
- * property "AdminMessageBroker={@link ServiceDiscoveryWebMessageBroker}" or set
- * the environment variable
+ * To use the {@link ServiceDiscoveryWebMessageBroker} you can set the
+ * environment variable
  * "ADMIN_MESSAGE_BROKER={@link ServiceDiscoveryWebMessageBroker}".
  * 
- * The {@link ServiceDiscoveryWebMessageBroker} must be configured. You can use
- * the java properties
- * "com.here.xyz.hub.rest.admin.ServiceDiscoveryWebMessageBroker.SERVICE_ID"
- * and
- * "com.here.xyz.hub.rest.admin.ServiceDiscoveryWebMessageBroker.PERIODIC_UPDATE_DELAY"
- * or set the environment variables
- * "SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID" and
- * "SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY".
+ * The {@link ServiceDiscoveryWebMessageBroker} must be configured. You can set
+ * the environment variable "SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID".
  * 
  */
 
@@ -50,24 +44,23 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 
 	private static volatile ServiceDiscoveryWebMessageBroker instance;
 	private static volatile AWSServiceDiscoveryAsync SD_CLIENT;
-	private static volatile String SD_SERVICE_ID;
-	private static volatile Integer PERIODIC_UPDATE_DELAY;
+	private static volatile String SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID;
 	private static volatile Boolean isInitialized;
 
 	static {
-		SD_SERVICE_ID = getConfig("SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID",
-				ServiceDiscoveryWebMessageBroker.class.getName() + ".SERVICE_ID", "xyz-hub");
-		PERIODIC_UPDATE_DELAY = Integer.parseInt(getConfig("SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY",
-				ServiceDiscoveryWebMessageBroker.class.getName() + ".PERIODIC_UPDATE_DELAY", "30000"));
+		SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID = (Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN != null
+				? Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN
+				: "xyz-hub");
 		try {
 			SD_CLIENT = AWSServiceDiscoveryAsyncClientBuilder.standard()
 					.withCredentials(new DefaultAWSCredentialsProviderChain()).build();
+			setPeriodicUpdateConfig();
 			isInitialized = true;
 			logger.info("The ServiceDiscoveryWebMessageBroker was initialized.");
 		} catch (Exception e) {
 			logger.warn("Initializing the ServiceDiscoveryWebMessageBroker failed with error: {} ", e.getMessage());
 			SD_CLIENT = null;
-			PERIODIC_UPDATE_DELAY = 0;
+			disablePeriodicUpdate();
 			isInitialized = false;
 		}
 		instance = new ServiceDiscoveryWebMessageBroker();
@@ -79,20 +72,10 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 	}
 
 	@Override
-	protected Boolean getPeriodicUpdate() {
-		return (SD_CLIENT != null && isInitialized);
-	}
-
-	@Override
-	protected Integer getPeriodicUpdateDelay() {
-		return PERIODIC_UPDATE_DELAY;
-	}
-
-	@Override
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
 		ConcurrentHashMap<String, String> targetEndpoints = new ConcurrentHashMap<String, String>();
 		ListInstancesRequest request = new ListInstancesRequest();
-		request.setServiceId(SD_SERVICE_ID);
+		request.setServiceId(SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID);
 		// TODO: minor: respect possible pagination
 		SD_CLIENT.listInstances(request).getInstances()
 				.forEach(targetInstance -> targetEndpoints.put(targetInstance.getAttributes().get("AWS_INSTANCE_IPV4"),
